@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import BigInteger, String, DateTime, Text, Integer, JSON, func
+from sqlalchemy import BigInteger, String, DateTime, Text, Integer, JSON, Boolean, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -17,6 +17,7 @@ class User(Base):
     company: Mapped[str] = mapped_column(String(255), nullable=True)
     position: Mapped[str] = mapped_column(String(255), nullable=True)
     phone_number: Mapped[str] = mapped_column(String(20), nullable=True)
+    is_profile_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

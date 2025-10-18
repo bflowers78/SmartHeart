@@ -3,6 +3,8 @@ from telebot.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardBut
 from loguru import logger
 from app.bot.messages import Messages
 from app.bot.services.material_service import get_material_by_id
+from app.bot.services.user_service import get_user_by_user_id
+from app.bot.states import UserState, user_contexts, UserContext
 from app.db.models import Material
 
 user_messages: dict[int, list[int]] = {}
@@ -21,6 +23,13 @@ MENU_MESSAGES = {
     'about': Messages.get_about_menu
 }
 
+FIELD_PROMPTS = {
+    'full_name': (UserState.FILLING_FULL_NAME, "📝 Введите ваше ФИО:"),
+    'company': (UserState.FILLING_COMPANY, "🏢 Введите название компании:"),
+    'position': (UserState.FILLING_POSITION, "💼 Введите вашу должность:"),
+    'phone': (UserState.FILLING_PHONE, "📞 Введите номер телефона:")
+}
+
 def register_callback_handlers(bot: TeleBot) -> None:
     @bot.callback_query_handler(func=lambda call: True)
     def handle_callback(call: CallbackQuery) -> None:
@@ -32,7 +41,12 @@ def register_callback_handlers(bot: TeleBot) -> None:
         elif call.data.startswith('back_to.'):
             _back_prevmenu(bot, call)
         elif call.data.startswith('get_material.'):
-            _display_material(bot, call)
+            if _is_complete_profile(bot, call):
+                _display_material(bot, call)
+        elif call.data.startswith('fill.'):
+            _handle_profile_fill(bot, call)
+        elif call.data == 'save_data':
+            _handle_save_profile(bot, call)
 
 def _menu_navigation(bot: TeleBot, call: CallbackQuery) -> None:
     bot.edit_message_text(
@@ -43,8 +57,69 @@ def _menu_navigation(bot: TeleBot, call: CallbackQuery) -> None:
 
 
 def _back_prevmenu(bot: TeleBot, call: CallbackQuery) -> None:
+    category_menu = call.data.split('.')[-1]
     delete_user_messages(bot, call.message.chat.id, call.from_user.id)
-    bot.send_message(call.message.chat.id, **MENU_MESSAGES[call.data]())
+    bot.send_message(call.message.chat.id, **MENU_MESSAGES[category_menu]())
+
+
+def _is_complete_profile(bot: TeleBot, call: CallbackQuery) -> None:
+    material_id = int(call.data.split('.')[-1])
+    user = get_user_by_user_id(call.from_user.id)
+    
+    if not user or not user.is_profile_completed:
+        user_id = call.from_user.id
+        
+        if user_id not in user_contexts:
+            user_contexts[user_id] = UserContext()
+        
+        ctx = user_contexts[user_id]
+        ctx.pending_material_id = material_id
+        ctx.state = UserState.MATERIAL_REQUESTED
+        ctx.profile_menu_message_id = call.message.message_id
+        
+        menu_data = Messages.get_profile_fill_menu(user)
+        bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            **menu_data
+        )
+                
+        return False
+    return True
+
+def _handle_profile_fill(bot: TeleBot, call: CallbackQuery) -> None:
+    field = call.data.split('.')[-1]
+    user_id = call.from_user.id
+    
+    if user_id not in user_contexts:
+        user_contexts[user_id] = UserContext()
+    
+    ctx = user_contexts[user_id]
+    ctx.profile_menu_message_id = call.message.message_id
+    
+    state, prompt = FIELD_PROMPTS[field]
+    ctx.state = state
+    msg = bot.send_message(call.message.chat.id, prompt)
+    ctx.request_message_id = msg.message_id
+
+
+def _handle_save_profile(bot: TeleBot, call: CallbackQuery) -> None:
+    """Обработка кнопки 'Сохранить' - проверяет заполненность профиля"""
+    user_id = call.from_user.id
+    user = get_user_by_user_id(user_id)
+    
+    if not user.full_name or not user.company or not user.position or not user.phone_number:
+        bot.answer_callback_query(call.id, "❌ Заполнены не все поля", show_alert=True)
+        return
+    
+    bot.answer_callback_query(call.id, "✅ Данные успешно сохранены")
+    
+    ctx = user_contexts.get(user_id)
+    if ctx and ctx.pending_material_id:
+        call.data = f'get_material.{ctx.pending_material_id}'
+        _display_material(bot, call)
+        ctx.pending_material_id = None
+        ctx.state = None
 
 
 def _display_material(bot: TeleBot, call: CallbackQuery) -> None:

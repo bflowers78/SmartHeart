@@ -16,6 +16,27 @@ class Messages:
         )
     }
 
+
+    @staticmethod
+    def get_profile_fill_menu(user) -> dict:
+        full_name_status = user.full_name if user.full_name else "Не заполнено"
+        company_status = user.company if user.company else "Не заполнено"
+        position_status = user.position if user.position else "Не заполнено"
+        phone_status = user.phone_number if user.phone_number else "Не заполнено"
+        
+        return {
+            'text': '📝 *Заполните все поля для доступа к материалам*',
+            'parse_mode': 'Markdown',
+            'reply_markup': InlineKeyboardMarkup(row_width=1).add(
+                InlineKeyboardButton(f'ФИО: {full_name_status}', callback_data='fill.full_name'),
+                InlineKeyboardButton(f'Компания: {company_status}', callback_data='fill.company'),
+                InlineKeyboardButton(f'Должность: {position_status}', callback_data='fill.position'),
+                InlineKeyboardButton(f'Номер телефона: {phone_status}', callback_data='fill.phone'),
+                InlineKeyboardButton('💾 Сохранить', callback_data='save_data'),
+                InlineKeyboardButton('🏠 Главное меню', callback_data='main_menu')
+            )
+        }
+
     @staticmethod
     def get_products_menu() -> dict:
         materials = get_materials_by_category('product')

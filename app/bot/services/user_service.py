@@ -20,3 +20,23 @@ def create_user(session: Session, telegram_user: TelegramUser) -> None:
 @with_session
 def get_user_by_user_id(session: Session, user_id: int) -> User | None:
     return session.query(User).filter(User.user_id == user_id).first()
+
+
+@with_session
+def update_user_profile(session: Session, user_id: int, field: str, value: str) -> bool:
+    user = session.query(User).filter(User.user_id == user_id).first()
+    if user:
+        if field == 'full_name':
+            user.full_name = value
+        elif field == 'company':
+            user.company = value
+        elif field == 'position':
+            user.position = value
+        elif field == 'phone_number':
+            user.phone_number = value
+        
+        if user.full_name and user.company and user.position and user.phone_number:
+            user.is_profile_completed = True
+        
+        return True
+    return False
