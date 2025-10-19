@@ -1,7 +1,8 @@
 from loguru import logger
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from telebot.types import User as TelegramUser
-from app.db.models import User
+from app.db.models import User, UserMaterialView, Material
 from app.db.database import with_session
 
 
@@ -43,3 +44,33 @@ def update_user_profile(session: Session, user_id: int, field: str, value: str) 
         if user.full_name and user.company and user.position and user.phone_number:
             user.is_profile_completed = True
         
+
+@with_session
+def get_all_users_with_materials(session: Session) -> list[dict]:
+    users = session.query(User).order_by(
+        User.is_profile_completed.desc(),
+        User.created_at.asc()
+    ).all()
+    
+    result = []
+    for user in users:
+        materials = session.query(Material).join(
+            UserMaterialView,
+            Material.id == UserMaterialView.material_id
+        ).filter(
+            UserMaterialView.user_id == user.user_id
+        ).all()
+        
+        result.append({
+            'user_id': user.user_id,
+            'username': user.username,
+            'first_name': user.first_name,
+            'full_name': user.full_name,
+            'company': user.company,
+            'position': user.position,
+            'phone_number': user.phone_number,
+            'created_at': user.created_at,
+            'materials': [material.title for material in materials]
+        })
+    
+    return result

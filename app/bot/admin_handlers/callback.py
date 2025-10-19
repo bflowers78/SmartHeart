@@ -5,8 +5,9 @@ from loguru import logger
 from app.bot.admin_handlers.states import AdminState, admin_contexts, AdminContext
 from app.bot.messages import AdminMessages
 from app.bot.services.material_service import get_material_by_id, create_material, update_material, delete_material, get_material_statistics
+from app.bot.services.user_service import get_all_users_with_materials
 from app.bot.services.file_service import delete_file
-from app.bot.utils import create_statistics_excel
+from app.bot.utils import create_statistics_excel, create_users_excel
 from app.config import ADMIN_GROUP_ID
 
 
@@ -29,7 +30,7 @@ def register_admin_callback_handlers(bot: TeleBot) -> None:
         if call.data == 'admin.main':
             _show_main_menu(bot, call)
         elif call.data == 'admin.users':
-            bot.answer_callback_query(call.id, "👥 Экспорт пользователей в разработке", show_alert=True)
+            _export_users(bot, call)
         elif call.data.startswith('admin.category.'):
             _show_category_menu(bot, call)
         elif call.data.startswith('admin.add.'):
@@ -57,21 +58,12 @@ def register_admin_callback_handlers(bot: TeleBot) -> None:
 
 
 def _show_main_menu(bot: TeleBot, call: CallbackQuery) -> None:
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        **AdminMessages.get_main_menu()
-    )
+    bot.edit_message_text(**AdminMessages.get_main_menu())
 
 
 def _show_category_menu(bot: TeleBot, call: CallbackQuery) -> None:
     category = call.data.split('.')[-1]
-    menu_data = AdminMessages.get_category_menu(category)
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        **menu_data
-    )
+    bot.edit_message_text(**AdminMessages.get_category_menu(category))
 
 
 def _start_create_material(bot: TeleBot, call: CallbackQuery) -> None:
@@ -82,25 +74,16 @@ def _start_create_material(bot: TeleBot, call: CallbackQuery) -> None:
     ctx = admin_contexts[user_id]
     ctx.menu_message_id = call.message.message_id
     
-    menu_data = AdminMessages.get_create_material_menu(ctx)
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        **menu_data
-    )
+    bot.edit_message_text(**AdminMessages.get_create_material_menu(ctx))
 
 
 def _show_material(bot: TeleBot, call: CallbackQuery) -> None:
     material_id = int(call.data.split('.')[-1])
     material = get_material_by_id(material_id)
     
-    menu_data = AdminMessages.get_material_menu(material_id, material.category)
     bot.edit_message_text(
-        chat_id=call.message.chat.id,
         message_id=call.message.message_id,
-        text=material.message_text,
-        parse_mode='Markdown',
-        **menu_data
+        **AdminMessages.get_material_menu(material_id, material.category)
     )
 
 
@@ -181,12 +164,7 @@ def _start_edit_material(bot: TeleBot, call: CallbackQuery) -> None:
     
     ctx = admin_contexts[user_id]
     
-    menu_data = AdminMessages.get_edit_material_menu(ctx)
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        **menu_data
-    )
+    bot.edit_message_text(**AdminMessages.get_edit_material_menu(ctx))
 
 
 def _publish_material(bot: TeleBot, call: CallbackQuery) -> None:
@@ -208,12 +186,7 @@ def _publish_material(bot: TeleBot, call: CallbackQuery) -> None:
     bot.answer_callback_query(call.id, "✅ Материал опубликован")
     del admin_contexts[user_id]
     
-    menu_data = AdminMessages.get_category_menu(ctx.category)
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        **menu_data
-    )
+    bot.edit_message_text(**AdminMessages.get_category_menu(ctx.category))
 
 
 def _save_material(bot: TeleBot, call: CallbackQuery) -> None:
@@ -235,12 +208,7 @@ def _save_material(bot: TeleBot, call: CallbackQuery) -> None:
     bot.answer_callback_query(call.id, "✅ Изменения сохранены")
     del admin_contexts[user_id]
     
-    menu_data = AdminMessages.get_category_menu(ctx.category)
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        **menu_data
-    )
+    bot.edit_message_text(**AdminMessages.get_category_menu(ctx.category))
 
 
 def _confirm_delete(bot: TeleBot, call: CallbackQuery) -> None:
@@ -251,12 +219,7 @@ def _confirm_delete(bot: TeleBot, call: CallbackQuery) -> None:
         bot.answer_callback_query(call.id, "❌ Материал не найден", show_alert=True)
         return
     
-    menu_data = AdminMessages.get_delete_confirm(material_id, material.category)
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        **menu_data
-    )
+    bot.edit_message_text(**AdminMessages.get_delete_confirm(material_id))
 
 
 def _delete_file_from_material(bot: TeleBot, call: CallbackQuery) -> None:
@@ -280,11 +243,7 @@ def _delete_file_from_material(bot: TeleBot, call: CallbackQuery) -> None:
     else:
         menu_data = AdminMessages.get_create_material_menu(ctx)
     
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        **menu_data
-    )
+    bot.edit_message_text(**menu_data)
 
 
 def _delete_material(bot: TeleBot, call: CallbackQuery) -> None:
@@ -300,12 +259,7 @@ def _delete_material(bot: TeleBot, call: CallbackQuery) -> None:
     
     bot.answer_callback_query(call.id, "✅ Материал удален")
     
-    menu_data = AdminMessages.get_category_menu(category)
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        **menu_data
-    )
+    bot.edit_message_text(**AdminMessages.get_category_menu(category))
 
 
 def _send_material_statistics(bot: TeleBot, call: CallbackQuery) -> None:
@@ -330,14 +284,43 @@ def _send_material_statistics(bot: TeleBot, call: CallbackQuery) -> None:
     
     filepath = create_statistics_excel(material_id, material.title, statistics)
     
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    
     bot.send_document(
         chat_id=call.message.chat.id,
         message_thread_id=call.message.message_thread_id,
         document=InputFile(filepath),
-        caption=f"📊 Статистика по материалу: {material.title}\n\nВсего просмотров: {len(statistics)}\nПросмотров в этом месяце: {current_month_views}"
+        caption=f"📊 Статистика по материалу: {material.title}\n\nВсего просмотров: {len(statistics)}\nПросмотров в этом месяце: {current_month_views}",
     )
+    bot.send_message(**AdminMessages.get_material_menu(material_id, material.category))
     
     filepath.unlink()
     
     bot.answer_callback_query(call.id, "✅ Статистика отправлена")
+
+
+def _export_users(bot: TeleBot, call: CallbackQuery) -> None:
+    users = get_all_users_with_materials()
+    
+    if not users:
+        bot.answer_callback_query(call.id, "📊 Пока нет пользователей", show_alert=True)
+        return
+    
+    filepath = create_users_excel(users)
+    
+    completed_count = sum(1 for user in users if user['full_name'] and user['company'] and user['position'] and user['phone_number'])
+    
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    
+    bot.send_document(
+        chat_id=call.message.chat.id,
+        message_thread_id=call.message.message_thread_id,
+        document=InputFile(filepath),
+        caption=f"👥 Экспорт пользователей\n\nВсего пользователей: {len(users)}\nС заполненными контактами: {completed_count}",
+    )
+    bot.send_message(**AdminMessages.get_main_menu())
+    
+    filepath.unlink()
+    
+    bot.answer_callback_query(call.id, "✅ Список пользователей отправлен")
 

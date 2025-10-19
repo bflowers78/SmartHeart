@@ -2,7 +2,7 @@ from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, User as Te
 from app.bot.admin_handlers.states import AdminContext
 from app.bot.services.material_service import get_materials_by_category
 from app.bot.services.file_service import get_files_by_ids
-from app.config import ADMIN_GROUP_ID, EVENTS_TOPIC_ID
+from app.config import ADMIN_GROUP_ID, EVENTS_TOPIC_ID, MAIN_TOPIC_ID
 from app.db.models import User, Material
 
 
@@ -10,7 +10,9 @@ class Messages:
     @staticmethod
     def get_main_menu() -> dict:
         return {
-        'text': '🏠 *Главное меню пользователя*',
+        'text': 'Привет! Команда *SmartHeart* разработала бота, кторый поможет найти всю необходимую информацию. '
+                'Мы попросим васподелться контатами, но обещаем, что хотим только познакомиться, а не устраивать спам-атаки)\n\n'
+                'Сейчас ты в *Главном меню*. Выбирай, куда отправишься дальше.',
         'parse_mode': 'Markdown',
         'reply_markup': InlineKeyboardMarkup(row_width=1).add(
             InlineKeyboardButton('💡 Продукты', callback_data='products'),
@@ -75,8 +77,8 @@ class Messages:
         markup = InlineKeyboardMarkup(row_width=1)
         for material in materials:
             markup.add(InlineKeyboardButton(material.title, callback_data=f'get_material.{material.id}'))
-        markup.add(InlineKeyboardButton('Стать участником', callback_data='main_menu'))
-        markup.add(InlineKeyboardButton('Стать зрителем', callback_data='main_menu'))
+        markup.add(InlineKeyboardButton('Стать участником', callback_data='become_participant'))
+        markup.add(InlineKeyboardButton('Стать зрителем', callback_data='become_viewer'))
         markup.add(InlineKeyboardButton('🏠 Главное меню', callback_data='main_menu'))
         
         return {
@@ -110,8 +112,10 @@ class AdminMessages:
     @staticmethod
     def get_main_menu() -> dict:
         return {
+            'chat_id': ADMIN_GROUP_ID,
             'text': '🏠 *Админ меню*\n\nВыберите раздел:',
             'parse_mode': 'Markdown',
+            'message_thread_id': MAIN_TOPIC_ID,
             'reply_markup': InlineKeyboardMarkup(row_width=1).add(
                 InlineKeyboardButton('👥 Пользователи', callback_data='admin.users'),
                 InlineKeyboardButton('💡 Продукты', callback_data='admin.category.product'),
@@ -132,6 +136,8 @@ class AdminMessages:
         markup.add(InlineKeyboardButton('🏠 Главное меню', callback_data='admin.main'))
         
         return {
+            'chat_id': ADMIN_GROUP_ID,
+            'message_thread_id': MAIN_TOPIC_ID,
             'text': f'{AdminMessages.CATEGORY_NAMES[category]}\n\nВыберите действие:',
             'parse_mode': 'Markdown',
             'reply_markup': markup
@@ -169,6 +175,8 @@ class AdminMessages:
         )
         
         return {
+            'chat_id': ADMIN_GROUP_ID,
+            'message_thread_id': MAIN_TOPIC_ID,
             'text': '📝 *Создание материала*\n\nЗаполните данные:',
             'parse_mode': 'Markdown',
             'reply_markup': markup
@@ -199,6 +207,8 @@ class AdminMessages:
         )
         
         return {
+            'chat_id': ADMIN_GROUP_ID,
+            'message_thread_id': MAIN_TOPIC_ID,
             'text': '✏️ *Редактирование материала*\n\nИзмените данные:',
             'parse_mode': 'Markdown',
             'reply_markup': markup
@@ -207,6 +217,9 @@ class AdminMessages:
     @staticmethod
     def get_material_menu(material_id: int, category: str) -> dict:
         return {
+            'chat_id': ADMIN_GROUP_ID,
+            'message_thread_id': MAIN_TOPIC_ID,
+            'parse_mode': 'Markdown',
             'reply_markup': InlineKeyboardMarkup(row_width=1).add(
                 InlineKeyboardButton('📊 Статистика', callback_data=f'admin.stats.{material_id}'),
                 InlineKeyboardButton('✏️ Редактировать', callback_data=f'admin.edit_start.{material_id}'),
@@ -216,8 +229,10 @@ class AdminMessages:
         }
     
     @staticmethod
-    def get_delete_confirm(material_id: int, category: str) -> dict:
+    def get_delete_confirm(material_id: int) -> dict:
         return {
+            'chat_id': ADMIN_GROUP_ID,
+            'message_thread_id': MAIN_TOPIC_ID,
             'text': '⚠️ *Подтверждение удаления*\n\nВы уверены, что хотите удалить этот материал?',
             'parse_mode': 'Markdown',
             'reply_markup': InlineKeyboardMarkup(row_width=2).add(
@@ -267,6 +282,25 @@ class AdminMessages:
                 f"🔗 Username: @{username or 'Не указано'}\n"
                 f"📄 Материал: <b>{material.title}</b>\n"
                 f"🏷 Категория: <b>{cls.CATEGORY_NAMES[material.category]}</b>"
+            ),
+            'message_thread_id': EVENTS_TOPIC_ID,
+            'parse_mode': 'HTML'
+        }
+    
+    @staticmethod
+    def roasting_request(user: User, request_type: str) -> dict:
+        request_label = "участником" if request_type == "participant" else "зрителем"
+        return {
+            'chat_id': ADMIN_GROUP_ID,
+            'text': (
+                f"🔥 <b>Заявка на участие в прожарке</b>\n\n"
+                f"👤 ID: <code>{user.user_id}</code>\n"
+                f"📛 ФИО: {user.full_name or 'Не указано'}\n"
+                f"🏢 Компания: {user.company or 'Не указано'}\n"
+                f"💼 Должность: {user.position or 'Не указано'}\n"
+                f"📞 Телефон: {user.phone_number or 'Не указано'}\n"
+                f"🔗 Username: @{user.username or 'Не указано'}\n\n"
+                f"Хочет стать <b>{request_label}</b>"
             ),
             'message_thread_id': EVENTS_TOPIC_ID,
             'parse_mode': 'HTML'

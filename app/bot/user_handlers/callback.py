@@ -46,6 +46,8 @@ def register_callback_handlers(bot: TeleBot) -> None:
             _handle_profile_fill(bot, call)
         elif call.data == 'save_data':
             _handle_save_profile(bot, call)
+        elif call.data in ('become_participant', 'become_viewer'):
+            _handle_roasting_request(bot, call)
 
 def _menu_navigation(bot: TeleBot, call: CallbackQuery) -> None:
     bot.edit_message_text(
@@ -169,3 +171,18 @@ def delete_user_messages(bot: TeleBot, chat_id: int, user_id: int) -> None:
             except Exception as e:
                 logger.error(f"Failed to delete message {msg_id}: {e}")
         del user_messages[user_id]
+
+
+def _handle_roasting_request(bot: TeleBot, call: CallbackQuery) -> None:
+    user = user_service.get_user_by_user_id(call.from_user.id)
+    request_type = "participant" if call.data == 'become_participant' else "viewer"
+    
+    bot.send_message(**AdminMessages.roasting_request(user, request_type))
+    
+    bot.answer_callback_query(call.id, "✅ Ваша заявка принята!", show_alert=True)
+    bot.send_message(
+        call.message.chat.id,
+        "🎉 *Спасибо за вашу активность!*\n\n"
+        "Ваша заявка принята. В ближайшее время мы свяжемся с вами.",
+        parse_mode='Markdown'
+    )
