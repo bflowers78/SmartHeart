@@ -4,6 +4,7 @@ from loguru import logger
 from app.bot.admin_handlers.states import AdminState, admin_contexts, AdminContext
 from app.bot.messages import AdminMessages
 from app.bot.services.material_service import get_material_by_id, create_material, update_material, delete_material
+from app.bot.services.file_service import delete_file
 from app.config import ADMIN_GROUP_ID
 
 
@@ -43,6 +44,8 @@ def register_admin_callback_handlers(bot: TeleBot) -> None:
             _publish_material(bot, call)
         elif call.data == 'admin.save':
             _save_material(bot, call)
+        elif call.data.startswith('admin.delete_file.'):
+            _delete_file_from_material(bot, call)
         elif call.data.startswith('admin.delete_confirm.'):
             _confirm_delete(bot, call)
         elif call.data.startswith('admin.delete.'):
@@ -89,38 +92,11 @@ def _show_material(bot: TeleBot, call: CallbackQuery) -> None:
     material_id = int(call.data.split('.')[-1])
     material = get_material_by_id(material_id)
     
-    if not material:
-        bot.answer_callback_query(call.id, "❌ Материал не найден", show_alert=True)
-        return
-    
-    bot.delete_message(call.message.chat.id, call.message.message_id)
-    
-    if material.media_file_id:
-        bot.send_photo(
-            chat_id=call.message.chat.id,
-            message_thread_id=call.message.message_thread_id,
-            photo=material.media_file_id,
-            caption=material.message_text
-        )
-    else:
-        bot.send_message(
-            chat_id=call.message.chat.id,
-            message_thread_id=call.message.message_thread_id,
-            text=material.message_text
-        )
-    
-    for file_id in material.document_file_ids:
-        bot.send_document(
-            chat_id=call.message.chat.id,
-            message_thread_id=call.message.message_thread_id,
-            document=file_id
-        )
-    
     menu_data = AdminMessages.get_material_menu(material_id, material.category)
-    bot.send_message(
+    bot.edit_message_text(
         chat_id=call.message.chat.id,
-        message_thread_id=call.message.message_thread_id,
-        text="⚙️ *Управление материалом:*",
+        message_id=call.message.message_id,
+        text=material.message_text,
         parse_mode='Markdown',
         **menu_data
     )
@@ -219,7 +195,7 @@ def _publish_material(bot: TeleBot, call: CallbackQuery) -> None:
         bot.answer_callback_query(call.id, "❌ Заполните обязательные поля", show_alert=True)
         return
     
-    material = create_material(
+    create_material(
         title=ctx.title,
         message_text=ctx.message_text,
         category=ctx.category,
@@ -274,6 +250,34 @@ def _confirm_delete(bot: TeleBot, call: CallbackQuery) -> None:
         return
     
     menu_data = AdminMessages.get_delete_confirm(material_id, material.category)
+    bot.edit_message_text(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        **menu_data
+    )
+
+
+def _delete_file_from_material(bot: TeleBot, call: CallbackQuery) -> None:
+    file_id = int(call.data.split('.')[-1])
+    user_id = call.from_user.id
+    
+    ctx = admin_contexts.get(user_id)
+    if not ctx:
+        bot.answer_callback_query(call.id, "❌ Контекст не найден", show_alert=True)
+        return
+    
+    if file_id in ctx.document_file_ids:
+        ctx.document_file_ids.remove(file_id)
+    
+    delete_file(file_id)
+    
+    bot.answer_callback_query(call.id, "🗑 Файл удален")
+    
+    if ctx.material_id:
+        menu_data = AdminMessages.get_edit_material_menu(ctx)
+    else:
+        menu_data = AdminMessages.get_create_material_menu(ctx)
+    
     bot.edit_message_text(
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,

@@ -32,7 +32,7 @@ def _process_profile_field(bot: TeleBot, message: Message, ctx: UserContext) -> 
     field_name, validator = FIELD_VALIDATORS[ctx.state]
     is_valid, error = validator(message.text)
     user_id = message.chat.id
-    print(ctx)
+
     if is_valid:
         update_user_profile(user_id, field_name, message.text.strip())
         _show_profile_menu(bot, message, ctx)

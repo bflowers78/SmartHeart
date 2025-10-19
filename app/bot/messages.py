@@ -1,6 +1,7 @@
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
 from app.bot.admin_handlers.states import AdminContext
 from app.bot.services.material_service import get_materials_by_category
+from app.bot.services.file_service import get_files_by_ids
 
 
 class Messages:
@@ -146,7 +147,7 @@ class AdminMessages:
         
         can_publish = ctx.title and ctx.message_text
         publish_btn = InlineKeyboardButton(
-            '✅ Опубликовать' if can_publish else '❌ Опубликовать (заполните поля)',
+            '✅ Опубликовать' if can_publish else 'Опубликовать',
             callback_data='admin.publish' if can_publish else 'admin.noop'
         )
         markup.add(publish_btn)
@@ -157,8 +158,10 @@ class AdminMessages:
             InlineKeyboardButton(f'🖼 Фото: {photo_status}', callback_data='admin.fill.photo')
         )
         
-        for i, _ in enumerate(ctx.document_file_ids):
-            markup.add(InlineKeyboardButton(f'📎 Файл {i + 1}', callback_data='admin.noop'))
+        if ctx.document_file_ids:
+            files = get_files_by_ids(ctx.document_file_ids)
+            for file in files:
+                markup.add(InlineKeyboardButton(f'📎 {file.file_name}', callback_data=f'admin.delete_file.{file.id}'))
         
         markup.add(
             InlineKeyboardButton('➕ Добавить файл', callback_data='admin.fill.document'),
@@ -184,8 +187,10 @@ class AdminMessages:
             InlineKeyboardButton(f'🖼 Фото: {photo_status}', callback_data='admin.edit.photo')
         )
         
-        for i, _ in enumerate(ctx.document_file_ids):
-            markup.add(InlineKeyboardButton(f'📎 Файл {i + 1}', callback_data='admin.noop'))
+        if ctx.document_file_ids:
+            files = get_files_by_ids(ctx.document_file_ids)
+            for file in files:
+                markup.add(InlineKeyboardButton(f'📎 {file.file_name}', callback_data=f'admin.delete_file.{file.id}'))
         
         markup.add(
             InlineKeyboardButton('➕ Добавить файл', callback_data='admin.edit.document'),

@@ -4,6 +4,7 @@ from loguru import logger
 from app.bot.messages import Messages
 from app.bot.services.material_service import get_material_by_id
 from app.bot.services.user_service import get_user_by_user_id
+from app.bot.services.file_service import get_files_by_ids
 from app.bot.user_handlers.states import UserState, user_contexts, UserContext
 from app.db.models import Material
 
@@ -136,7 +137,8 @@ def send_material_content(bot: TeleBot, chat_id: int, material: Material) -> lis
     back_markup = InlineKeyboardMarkup().add(InlineKeyboardButton('🔙 Назад', callback_data=f'back_to.{category_menu}'))
     has_documents = material.document_file_ids and len(material.document_file_ids) > 0
     first_msg_markup = None if has_documents else back_markup
-    
+    print(material.document_file_ids)
+    print(has_documents)
     if material.media_file_id:
         msg = bot.send_photo(chat_id, material.media_file_id, caption=material.message_text, reply_markup=first_msg_markup)
     else:
@@ -145,10 +147,11 @@ def send_material_content(bot: TeleBot, chat_id: int, material: Material) -> lis
     sent_messages.append(msg.message_id)
     
     if has_documents:
-        for i, file_id in enumerate(material.document_file_ids):
-            is_last = i == len(material.document_file_ids) - 1
+        files = get_files_by_ids(material.document_file_ids)
+        for i, file in enumerate(files):
+            is_last = i == len(files) - 1
             markup = back_markup if is_last else None
-            msg = bot.send_document(chat_id, file_id, reply_markup=markup)
+            msg = bot.send_document(chat_id, file.file_id, reply_markup=markup)
             sent_messages.append(msg.message_id)
     
     return sent_messages

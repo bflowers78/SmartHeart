@@ -3,6 +3,7 @@ from telebot.types import Message
 from loguru import logger
 from app.bot.admin_handlers.states import AdminState, admin_contexts
 from app.bot.messages import AdminMessages
+from app.bot.services.file_service import create_file
 from app.config import ADMIN_GROUP_ID, MAIN_TOPIC_ID
 
 
@@ -50,7 +51,16 @@ def register_admin_message_handlers(bot: TeleBot) -> None:
         if not ctx or ctx.state != AdminState.FILLING_DOCUMENT:
             return
         
-        ctx.document_file_ids.append(message.document.file_id)
+        file_name = message.document.file_name or "Без названия"
+        file_extension = file_name.split('.')[-1] if '.' in file_name else None
+        
+        file_obj = create_file(
+            file_name=file_name,
+            file_extension=file_extension,
+            file_id=message.document.file_id
+        )
+        
+        ctx.document_file_ids.append(file_obj.id)
         _update_menu(bot, message, ctx)
 
 

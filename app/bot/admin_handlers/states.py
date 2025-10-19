@@ -19,7 +19,7 @@ class AdminContext:
     title: str | None = None
     message_text: str | None = None
     media_file_id: str | None = None
-    document_file_ids: list[str] = field(default_factory=list)
+    document_file_ids: list[int] = field(default_factory=list)
 
 
 admin_contexts: dict[int, AdminContext] = {}

@@ -21,6 +21,16 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class File(Base):
+    __tablename__ = "files"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_extension: Mapped[str] = mapped_column(String(50), nullable=True)
+    file_id: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class Material(Base):
     __tablename__ = "materials"
 
@@ -28,6 +38,6 @@ class Material(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     message_text: Mapped[str] = mapped_column(Text, nullable=False)
     media_file_id: Mapped[str] = mapped_column(String(255), nullable=True)
-    document_file_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    document_file_ids: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=list)
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
