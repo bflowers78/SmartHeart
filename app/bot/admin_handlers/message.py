@@ -72,7 +72,10 @@ def _update_menu(bot: TeleBot, message: Message, ctx) -> None:
     else:
         menu_data = AdminMessages.get_create_material_menu(ctx)
     
-    bot.edit_message_text(**menu_data)
+    bot.edit_message_text(
+        message_id=ctx.menu_message_id,
+        **menu_data
+    )
     
     ctx.state = None
 

@@ -58,12 +58,18 @@ def register_admin_callback_handlers(bot: TeleBot) -> None:
 
 
 def _show_main_menu(bot: TeleBot, call: CallbackQuery) -> None:
-    bot.edit_message_text(**AdminMessages.get_main_menu())
+    bot.edit_message_text(
+        message_id=call.message.message_id,
+        **AdminMessages.get_main_menu()
+        )
 
 
 def _show_category_menu(bot: TeleBot, call: CallbackQuery) -> None:
     category = call.data.split('.')[-1]
-    bot.edit_message_text(**AdminMessages.get_category_menu(category))
+    bot.edit_message_text(
+        message_id=call.message.message_id,
+        **AdminMessages.get_category_menu(category)
+        )
 
 
 def _start_create_material(bot: TeleBot, call: CallbackQuery) -> None:
@@ -74,7 +80,10 @@ def _start_create_material(bot: TeleBot, call: CallbackQuery) -> None:
     ctx = admin_contexts[user_id]
     ctx.menu_message_id = call.message.message_id
     
-    bot.edit_message_text(**AdminMessages.get_create_material_menu(ctx))
+    bot.edit_message_text(
+        message_id=call.message.message_id,
+        **AdminMessages.get_create_material_menu(ctx)
+        )
 
 
 def _show_material(bot: TeleBot, call: CallbackQuery) -> None:
@@ -83,7 +92,7 @@ def _show_material(bot: TeleBot, call: CallbackQuery) -> None:
     
     bot.edit_message_text(
         message_id=call.message.message_id,
-        **AdminMessages.get_material_menu(material_id, material.category)
+        **AdminMessages.get_material_menu(material)
     )
 
 
@@ -164,7 +173,10 @@ def _start_edit_material(bot: TeleBot, call: CallbackQuery) -> None:
     
     ctx = admin_contexts[user_id]
     
-    bot.edit_message_text(**AdminMessages.get_edit_material_menu(ctx))
+    bot.edit_message_text(
+        message_id=call.message.message_id,
+        **AdminMessages.get_edit_material_menu(ctx)
+        )
 
 
 def _publish_material(bot: TeleBot, call: CallbackQuery) -> None:
@@ -186,7 +198,10 @@ def _publish_material(bot: TeleBot, call: CallbackQuery) -> None:
     bot.answer_callback_query(call.id, "✅ Материал опубликован")
     del admin_contexts[user_id]
     
-    bot.edit_message_text(**AdminMessages.get_category_menu(ctx.category))
+    bot.edit_message_text(
+        message_id=call.message.message_id,
+        **AdminMessages.get_category_menu(ctx.category)
+        )
 
 
 def _save_material(bot: TeleBot, call: CallbackQuery) -> None:
@@ -208,7 +223,10 @@ def _save_material(bot: TeleBot, call: CallbackQuery) -> None:
     bot.answer_callback_query(call.id, "✅ Изменения сохранены")
     del admin_contexts[user_id]
     
-    bot.edit_message_text(**AdminMessages.get_category_menu(ctx.category))
+    bot.edit_message_text(
+        message_id=call.message.message_id,
+        **AdminMessages.get_category_menu(ctx.category)
+        )
 
 
 def _confirm_delete(bot: TeleBot, call: CallbackQuery) -> None:
@@ -219,7 +237,10 @@ def _confirm_delete(bot: TeleBot, call: CallbackQuery) -> None:
         bot.answer_callback_query(call.id, "❌ Материал не найден", show_alert=True)
         return
     
-    bot.edit_message_text(**AdminMessages.get_delete_confirm(material_id))
+    bot.edit_message_text(
+        message_id=call.message.message_id,
+        **AdminMessages.get_delete_confirm(material_id)
+        )
 
 
 def _delete_file_from_material(bot: TeleBot, call: CallbackQuery) -> None:
@@ -243,7 +264,10 @@ def _delete_file_from_material(bot: TeleBot, call: CallbackQuery) -> None:
     else:
         menu_data = AdminMessages.get_create_material_menu(ctx)
     
-    bot.edit_message_text(**menu_data)
+    bot.edit_message_text(
+        message_id=call.message.message_id,
+        **menu_data
+        )
 
 
 def _delete_material(bot: TeleBot, call: CallbackQuery) -> None:
@@ -259,7 +283,9 @@ def _delete_material(bot: TeleBot, call: CallbackQuery) -> None:
     
     bot.answer_callback_query(call.id, "✅ Материал удален")
     
-    bot.edit_message_text(**AdminMessages.get_category_menu(category))
+    bot.edit_message_text(
+        message_id=call.message.message_id,
+        **AdminMessages.get_category_menu(category))
 
 
 def _send_material_statistics(bot: TeleBot, call: CallbackQuery) -> None:
@@ -292,7 +318,10 @@ def _send_material_statistics(bot: TeleBot, call: CallbackQuery) -> None:
         document=InputFile(filepath),
         caption=f"📊 Статистика по материалу: {material.title}\n\nВсего просмотров: {len(statistics)}\nПросмотров в этом месяце: {current_month_views}",
     )
-    bot.send_message(**AdminMessages.get_material_menu(material_id, material.category))
+    bot.send_message(
+        message_thread_id=call.message.message_thread_id,
+        **AdminMessages.get_material_menu(material)
+        )
     
     filepath.unlink()
     
@@ -318,7 +347,10 @@ def _export_users(bot: TeleBot, call: CallbackQuery) -> None:
         document=InputFile(filepath),
         caption=f"👥 Экспорт пользователей\n\nВсего пользователей: {len(users)}\nС заполненными контактами: {completed_count}",
     )
-    bot.send_message(**AdminMessages.get_main_menu())
+    bot.send_message(
+        message_thread_id=call.message.message_thread_id,
+        **AdminMessages.get_main_menu()
+        )
     
     filepath.unlink()
     

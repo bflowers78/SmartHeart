@@ -115,7 +115,6 @@ class AdminMessages:
             'chat_id': ADMIN_GROUP_ID,
             'text': '🏠 *Админ меню*\n\nВыберите раздел:',
             'parse_mode': 'Markdown',
-            'message_thread_id': MAIN_TOPIC_ID,
             'reply_markup': InlineKeyboardMarkup(row_width=1).add(
                 InlineKeyboardButton('👥 Пользователи', callback_data='admin.users'),
                 InlineKeyboardButton('💡 Продукты', callback_data='admin.category.product'),
@@ -137,7 +136,6 @@ class AdminMessages:
         
         return {
             'chat_id': ADMIN_GROUP_ID,
-            'message_thread_id': MAIN_TOPIC_ID,
             'text': f'{AdminMessages.CATEGORY_NAMES[category]}\n\nВыберите действие:',
             'parse_mode': 'Markdown',
             'reply_markup': markup
@@ -176,7 +174,6 @@ class AdminMessages:
         
         return {
             'chat_id': ADMIN_GROUP_ID,
-            'message_thread_id': MAIN_TOPIC_ID,
             'text': '📝 *Создание материала*\n\nЗаполните данные:',
             'parse_mode': 'Markdown',
             'reply_markup': markup
@@ -208,23 +205,22 @@ class AdminMessages:
         
         return {
             'chat_id': ADMIN_GROUP_ID,
-            'message_thread_id': MAIN_TOPIC_ID,
             'text': '✏️ *Редактирование материала*\n\nИзмените данные:',
             'parse_mode': 'Markdown',
             'reply_markup': markup
         }
     
     @staticmethod
-    def get_material_menu(material_id: int, category: str) -> dict:
+    def get_material_menu(material: Material) -> dict:
         return {
             'chat_id': ADMIN_GROUP_ID,
-            'message_thread_id': MAIN_TOPIC_ID,
+            'text': material.message_text,
             'parse_mode': 'Markdown',
             'reply_markup': InlineKeyboardMarkup(row_width=1).add(
-                InlineKeyboardButton('📊 Статистика', callback_data=f'admin.stats.{material_id}'),
-                InlineKeyboardButton('✏️ Редактировать', callback_data=f'admin.edit_start.{material_id}'),
-                InlineKeyboardButton('🗑 Удалить материал', callback_data=f'admin.delete_confirm.{material_id}'),
-                InlineKeyboardButton('🔙 Назад', callback_data=f'admin.category.{category}')
+                InlineKeyboardButton('📊 Статистика', callback_data=f'admin.stats.{material.id}'),
+                InlineKeyboardButton('✏️ Редактировать', callback_data=f'admin.edit_start.{material.id}'),
+                InlineKeyboardButton('🗑 Удалить материал', callback_data=f'admin.delete_confirm.{material.id}'),
+                InlineKeyboardButton('🔙 Назад', callback_data=f'admin.category.{material.category}')
             )
         }
     
@@ -232,7 +228,6 @@ class AdminMessages:
     def get_delete_confirm(material_id: int) -> dict:
         return {
             'chat_id': ADMIN_GROUP_ID,
-            'message_thread_id': MAIN_TOPIC_ID,
             'text': '⚠️ *Подтверждение удаления*\n\nВы уверены, что хотите удалить этот материал?',
             'parse_mode': 'Markdown',
             'reply_markup': InlineKeyboardMarkup(row_width=2).add(

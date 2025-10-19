@@ -11,5 +11,8 @@ def register_admin_command_handlers(bot: TeleBot) -> None:
         if message.chat.id != ADMIN_GROUP_ID or message.message_thread_id != MAIN_TOPIC_ID:
             return
 
-        bot.send_message(**AdminMessages.get_main_menu())
+        bot.send_message(
+            message_thread_id=message.message_thread_id,
+            **AdminMessages.get_main_menu()
+            )
 
