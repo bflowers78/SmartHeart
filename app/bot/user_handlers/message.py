@@ -1,8 +1,9 @@
+import time
 from telebot import TeleBot
 from telebot.types import Message
 from loguru import logger
 from app.bot.services.user_service import get_user_by_user_id, update_user_profile
-from app.bot.states import UserState, user_contexts, UserContext
+from app.bot.user_handlers.states import UserState, user_contexts, UserContext
 from app.bot.validators import validate_full_name, validate_company, validate_position, validate_phone
 from app.bot.messages import Messages
 
@@ -30,12 +31,16 @@ def _process_profile_field(bot: TeleBot, message: Message, ctx: UserContext) -> 
     """Обрабатывает ввод данных профиля"""
     field_name, validator = FIELD_VALIDATORS[ctx.state]
     is_valid, error = validator(message.text)
-    
+    user_id = message.chat.id
+    print(ctx)
     if is_valid:
-        update_user_profile(message.chat.id, field_name, message.text.strip())
+        update_user_profile(user_id, field_name, message.text.strip())
         _show_profile_menu(bot, message, ctx)
     else:
-        bot.send_message(message.chat.id, f"❌ {error}")
+        _delete_messages(bot, user_id, message.message_id, ctx)
+        msg = bot.send_message(user_id, f"❌ {error}")
+        time.sleep(2)
+        bot.delete_message(user_id, msg.message_id)
 
 
 def _show_profile_menu(bot: TeleBot, message: Message, ctx: UserContext) -> None:

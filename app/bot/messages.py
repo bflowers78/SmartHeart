@@ -1,4 +1,5 @@
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
+from app.bot.admin_handlers.states import AdminContext
 from app.bot.services.material_service import get_materials_by_category
 
 
@@ -95,3 +96,133 @@ class Messages:
             InlineKeyboardButton('🏠 Главное меню', callback_data='main_menu')
         )
     }
+
+class AdminMessages:
+    CATEGORY_NAMES = {
+        'product': '💡 Продукты',
+        'helpful': '📕 Полезные материалы',
+        'roasting': '🔥 Прожарка'
+    }
+    
+    @staticmethod
+    def get_main_menu() -> dict:
+        markup = InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            InlineKeyboardButton('👥 Пользователи', callback_data='admin.users'),
+            InlineKeyboardButton('💡 Продукты', callback_data='admin.category.product'),
+            InlineKeyboardButton('📕 Полезные материалы', callback_data='admin.category.helpful'),
+            InlineKeyboardButton('🔥 Прожарка', callback_data='admin.category.roasting')
+        )
+        return {
+            'text': '🏠 *Админ меню*\n\nВыберите раздел:',
+            'parse_mode': 'Markdown',
+            'reply_markup': markup
+        }
+    
+    @staticmethod
+    def get_category_menu(category: str) -> dict:
+        materials = get_materials_by_category(category)
+        markup = InlineKeyboardMarkup(row_width=1)
+        markup.add(InlineKeyboardButton('➕ Добавить материал', callback_data=f'admin.add.{category}'))
+        
+        for material in materials:
+            markup.add(InlineKeyboardButton(material.title, callback_data=f'admin.material.{material.id}'))
+        
+        markup.add(InlineKeyboardButton('🏠 Главное меню', callback_data='admin.main'))
+        
+        return {
+            'text': f'{AdminMessages.CATEGORY_NAMES[category]}\n\nВыберите действие:',
+            'parse_mode': 'Markdown',
+            'reply_markup': markup
+        }
+    
+    @staticmethod
+    def get_create_material_menu(ctx: AdminContext) -> dict:
+        title_status = ctx.title if ctx.title else "Не заполнено"
+        text_status = "Заполнено" if ctx.message_text else "Не заполнено"
+        photo_status = "Добавлено" if ctx.media_file_id else "Не добавлено"
+        
+        markup = InlineKeyboardMarkup(row_width=1)
+        
+        can_publish = ctx.title and ctx.message_text
+        publish_btn = InlineKeyboardButton(
+            '✅ Опубликовать' if can_publish else '❌ Опубликовать (заполните поля)',
+            callback_data='admin.publish' if can_publish else 'admin.noop'
+        )
+        markup.add(publish_btn)
+        
+        markup.add(
+            InlineKeyboardButton(f'📝 Название: {title_status}', callback_data='admin.fill.title'),
+            InlineKeyboardButton(f'💬 Текст: {text_status}', callback_data='admin.fill.message_text'),
+            InlineKeyboardButton(f'🖼 Фото: {photo_status}', callback_data='admin.fill.photo')
+        )
+        
+        for i, _ in enumerate(ctx.document_file_ids):
+            markup.add(InlineKeyboardButton(f'📎 Файл {i + 1}', callback_data='admin.noop'))
+        
+        markup.add(
+            InlineKeyboardButton('➕ Добавить файл', callback_data='admin.fill.document'),
+            InlineKeyboardButton('🔙 Назад', callback_data=f'admin.category.{ctx.category}')
+        )
+        
+        return {
+            'text': '📝 *Создание материала*\n\nЗаполните данные:',
+            'parse_mode': 'Markdown',
+            'reply_markup': markup
+        }
+    
+    @staticmethod
+    def get_edit_material_menu(ctx: AdminContext) -> dict:
+        title_status = ctx.title if ctx.title else "Не заполнено"
+        text_status = "Заполнено" if ctx.message_text else "Не заполнено"
+        photo_status = "Добавлено" if ctx.media_file_id else "Не добавлено"
+        
+        markup = InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            InlineKeyboardButton(f'📝 Название: {title_status}', callback_data='admin.edit.title'),
+            InlineKeyboardButton(f'💬 Текст: {text_status}', callback_data='admin.edit.message_text'),
+            InlineKeyboardButton(f'🖼 Фото: {photo_status}', callback_data='admin.edit.photo')
+        )
+        
+        for i, _ in enumerate(ctx.document_file_ids):
+            markup.add(InlineKeyboardButton(f'📎 Файл {i + 1}', callback_data='admin.noop'))
+        
+        markup.add(
+            InlineKeyboardButton('➕ Добавить файл', callback_data='admin.edit.document'),
+            InlineKeyboardButton('💾 Сохранить', callback_data='admin.save'),
+            InlineKeyboardButton('🔙 Назад', callback_data=f'admin.material.{ctx.material_id}')
+        )
+        
+        return {
+            'text': '✏️ *Редактирование материала*\n\nИзмените данные:',
+            'parse_mode': 'Markdown',
+            'reply_markup': markup
+        }
+    
+    @staticmethod
+    def get_material_menu(material_id: int, category: str) -> dict:
+        markup = InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            InlineKeyboardButton('📊 Статистика', callback_data='admin.stats'),
+            InlineKeyboardButton('✏️ Редактировать', callback_data=f'admin.edit_start.{material_id}'),
+            InlineKeyboardButton('🗑 Удалить материал', callback_data=f'admin.delete_confirm.{material_id}'),
+            InlineKeyboardButton('🔙 Назад', callback_data=f'admin.category.{category}')
+        )
+        
+        return {
+            'reply_markup': markup
+        }
+    
+    @staticmethod
+    def get_delete_confirm(material_id: int, category: str) -> dict:
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton('✅ Да, удалить', callback_data=f'admin.delete.{material_id}'),
+            InlineKeyboardButton('❌ Отмена', callback_data=f'admin.material.{material_id}')
+        )
+        
+        return {
+            'text': '⚠️ *Подтверждение удаления*\n\nВы уверены, что хотите удалить этот материал?',
+            'parse_mode': 'Markdown',
+            'reply_markup': markup
+        }

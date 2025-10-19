@@ -1,3 +1,4 @@
+from loguru import logger
 from sqlalchemy.orm import Session
 from telebot.types import User as TelegramUser
 from app.db.models import User
@@ -15,6 +16,7 @@ def create_user(session: Session, telegram_user: TelegramUser) -> None:
             first_name=telegram_user.first_name
         )
         session.add(user)
+        logger.info(f"Добавлен новый пользователь {telegram_user.id}:@{telegram_user.username}:{telegram_user.first_name}")
 
 
 @with_session

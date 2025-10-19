@@ -4,7 +4,7 @@ from loguru import logger
 from app.bot.messages import Messages
 from app.bot.services.material_service import get_material_by_id
 from app.bot.services.user_service import get_user_by_user_id
-from app.bot.states import UserState, user_contexts, UserContext
+from app.bot.user_handlers.states import UserState, user_contexts, UserContext
 from app.db.models import Material
 
 user_messages: dict[int, list[int]] = {}
