@@ -6,7 +6,7 @@ from app.db.database import with_session
 
 
 @with_session
-def create_user(session: Session, telegram_user: TelegramUser) -> None:
+def create_user(session: Session, telegram_user: TelegramUser) -> bool:
     user = session.query(User).filter(User.user_id == telegram_user.id).first()
     
     if not user:
@@ -17,6 +17,9 @@ def create_user(session: Session, telegram_user: TelegramUser) -> None:
         )
         session.add(user)
         logger.info(f"Добавлен новый пользователь {telegram_user.id}:@{telegram_user.username}:{telegram_user.first_name}")
+        return True
+    
+    return False
 
 
 @with_session
@@ -25,7 +28,7 @@ def get_user_by_user_id(session: Session, user_id: int) -> User | None:
 
 
 @with_session
-def update_user_profile(session: Session, user_id: int, field: str, value: str) -> bool:
+def update_user_profile(session: Session, user_id: int, field: str, value: str) -> None:
     user = session.query(User).filter(User.user_id == user_id).first()
     if user:
         if field == 'full_name':
@@ -40,5 +43,3 @@ def update_user_profile(session: Session, user_id: int, field: str, value: str) 
         if user.full_name and user.company and user.position and user.phone_number:
             user.is_profile_completed = True
         
-        return True
-    return False

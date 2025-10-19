@@ -1,7 +1,9 @@
-from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
+from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, User as TelegramUser
 from app.bot.admin_handlers.states import AdminContext
 from app.bot.services.material_service import get_materials_by_category
 from app.bot.services.file_service import get_files_by_ids
+from app.config import ADMIN_GROUP_ID, EVENTS_TOPIC_ID
+from app.db.models import User, Material
 
 
 class Messages:
@@ -89,11 +91,11 @@ class Messages:
         'text': '🏠 *О нас*',
         'parse_mode': 'Markdown',
         'reply_markup': InlineKeyboardMarkup(row_width=1).add(
-            InlineKeyboardButton('Smart Heart a тепетрами', callback_data='smart_heart_tepetrami'),
-            InlineKeyboardButton('Портфолио', callback_data='portfolio'),
-            InlineKeyboardButton('Команда', callback_data='team'),
-            InlineKeyboardButton('Оставить замоку', callback_data='leave_request'),
-            InlineKeyboardButton('Услуги', callback_data='services'),
+            InlineKeyboardButton('SmartHeart в телеграмм', url='https://lcvr.net/s/PSRGV'),
+            InlineKeyboardButton('Портфолио', url='https://lcvr.net/s/gzxsY'),
+            InlineKeyboardButton('Команда', url='https://lcvr.net/s/GG8PB'),
+            InlineKeyboardButton('Оставить замоку', url='https://lcvr.net/s/JdcdH'),
+            InlineKeyboardButton('Услуги', url='https://lcvr.net/s/sxdGt'),
             InlineKeyboardButton('🏠 Главное меню', callback_data='main_menu')
         )
     }
@@ -107,17 +109,15 @@ class AdminMessages:
     
     @staticmethod
     def get_main_menu() -> dict:
-        markup = InlineKeyboardMarkup(row_width=1)
-        markup.add(
-            InlineKeyboardButton('👥 Пользователи', callback_data='admin.users'),
-            InlineKeyboardButton('💡 Продукты', callback_data='admin.category.product'),
-            InlineKeyboardButton('📕 Полезные материалы', callback_data='admin.category.helpful'),
-            InlineKeyboardButton('🔥 Прожарка', callback_data='admin.category.roasting')
-        )
         return {
             'text': '🏠 *Админ меню*\n\nВыберите раздел:',
             'parse_mode': 'Markdown',
-            'reply_markup': markup
+            'reply_markup': InlineKeyboardMarkup(row_width=1).add(
+                InlineKeyboardButton('👥 Пользователи', callback_data='admin.users'),
+                InlineKeyboardButton('💡 Продукты', callback_data='admin.category.product'),
+                InlineKeyboardButton('📕 Полезные материалы', callback_data='admin.category.helpful'),
+                InlineKeyboardButton('🔥 Прожарка', callback_data='admin.category.roasting')
+            )
         }
     
     @staticmethod
@@ -206,28 +206,68 @@ class AdminMessages:
     
     @staticmethod
     def get_material_menu(material_id: int, category: str) -> dict:
-        markup = InlineKeyboardMarkup(row_width=1)
-        markup.add(
-            InlineKeyboardButton('📊 Статистика', callback_data='admin.stats'),
-            InlineKeyboardButton('✏️ Редактировать', callback_data=f'admin.edit_start.{material_id}'),
-            InlineKeyboardButton('🗑 Удалить материал', callback_data=f'admin.delete_confirm.{material_id}'),
-            InlineKeyboardButton('🔙 Назад', callback_data=f'admin.category.{category}')
-        )
-        
         return {
-            'reply_markup': markup
+            'reply_markup': InlineKeyboardMarkup(row_width=1).add(
+                InlineKeyboardButton('📊 Статистика', callback_data=f'admin.stats.{material_id}'),
+                InlineKeyboardButton('✏️ Редактировать', callback_data=f'admin.edit_start.{material_id}'),
+                InlineKeyboardButton('🗑 Удалить материал', callback_data=f'admin.delete_confirm.{material_id}'),
+                InlineKeyboardButton('🔙 Назад', callback_data=f'admin.category.{category}')
+            )
         }
     
     @staticmethod
     def get_delete_confirm(material_id: int, category: str) -> dict:
-        markup = InlineKeyboardMarkup(row_width=2)
-        markup.add(
-            InlineKeyboardButton('✅ Да, удалить', callback_data=f'admin.delete.{material_id}'),
-            InlineKeyboardButton('❌ Отмена', callback_data=f'admin.material.{material_id}')
-        )
-        
         return {
             'text': '⚠️ *Подтверждение удаления*\n\nВы уверены, что хотите удалить этот материал?',
             'parse_mode': 'Markdown',
-            'reply_markup': markup
+            'reply_markup': InlineKeyboardMarkup(row_width=2).add(
+                InlineKeyboardButton('✅ Да, удалить', callback_data=f'admin.delete.{material_id}'),
+                InlineKeyboardButton('❌ Отмена', callback_data=f'admin.material.{material_id}')
+            )
+        }
+    
+    @staticmethod
+    def new_user(telegram_user: TelegramUser) -> dict:
+        return {
+            'chat_id': ADMIN_GROUP_ID,
+            'text': (
+                f"🆕 <b>Новый пользователь</b>\n\n"
+                f"👤 ID: <code>{telegram_user.id}</code>\n"
+                f"📛 Имя: {telegram_user.first_name or 'Не указано'}\n"
+                f"🔗 Username: @{telegram_user.username or 'Не указано'}"
+            ),
+            'message_thread_id': EVENTS_TOPIC_ID,
+            'parse_mode': 'HTML'
+        }
+    
+    @staticmethod
+    def profile_completed(user: User) -> dict:
+        return {
+            'chat_id': ADMIN_GROUP_ID,
+            'text': (
+                f"📞 <b>Пользователь поделился контактами</b>\n\n"
+                f"👤 ID: <code>{user.user_id}</code>\n"
+                f"📛 ФИО: {user.full_name}\n"
+                f"🏢 Компания: {user.company}\n"
+                f"💼 Должность: {user.position}\n"
+                f"📞 Телефон: {user.phone_number}\n"
+                f"🔗 Username: @{user.username or 'Не указано'}"
+            ),
+            'message_thread_id': EVENTS_TOPIC_ID,
+            'parse_mode': 'HTML'
+        }
+    
+    @classmethod
+    def material_interest(cls, user_id: int, username: str | None, material: Material) -> dict:
+        return {
+            'chat_id': ADMIN_GROUP_ID,
+            'text': (
+                f"📚 <b>Интерес к материалу</b>\n\n"
+                f"👤 ID: <code>{user_id}</code>\n"
+                f"🔗 Username: @{username or 'Не указано'}\n"
+                f"📄 Материал: <b>{material.title}</b>\n"
+                f"🏷 Категория: <b>{cls.CATEGORY_NAMES[material.category]}</b>"
+            ),
+            'message_thread_id': EVENTS_TOPIC_ID,
+            'parse_mode': 'HTML'
         }

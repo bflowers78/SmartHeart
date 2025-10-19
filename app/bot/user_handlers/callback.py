@@ -1,10 +1,8 @@
 from telebot import TeleBot
 from telebot.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from loguru import logger
-from app.bot.messages import Messages
-from app.bot.services.material_service import get_material_by_id
-from app.bot.services.user_service import get_user_by_user_id
-from app.bot.services.file_service import get_files_by_ids
+from app.bot.messages import Messages, AdminMessages
+from app.bot.services import material_service, user_service, file_service
 from app.bot.user_handlers.states import UserState, user_contexts, UserContext
 from app.db.models import Material
 
@@ -65,7 +63,7 @@ def _back_prevmenu(bot: TeleBot, call: CallbackQuery) -> None:
 
 def _is_complete_profile(bot: TeleBot, call: CallbackQuery) -> None:
     material_id = int(call.data.split('.')[-1])
-    user = get_user_by_user_id(call.from_user.id)
+    user = user_service.get_user_by_user_id(call.from_user.id)
     
     if not user or not user.is_profile_completed:
         user_id = call.from_user.id
@@ -107,13 +105,14 @@ def _handle_profile_fill(bot: TeleBot, call: CallbackQuery) -> None:
 def _handle_save_profile(bot: TeleBot, call: CallbackQuery) -> None:
     """Обработка кнопки 'Сохранить' - проверяет заполненность профиля"""
     user_id = call.from_user.id
-    user = get_user_by_user_id(user_id)
+    user = user_service.get_user_by_user_id(user_id)
     
-    if not user.full_name or not user.company or not user.position or not user.phone_number:
+    if not user.is_profile_completed:
         bot.answer_callback_query(call.id, "❌ Заполнены не все поля", show_alert=True)
         return
     
     bot.answer_callback_query(call.id, "✅ Данные успешно сохранены")
+    bot.send_message(**AdminMessages.profile_completed(user))
     
     ctx = user_contexts.get(user_id)
     if ctx and ctx.pending_material_id:
@@ -125,7 +124,10 @@ def _handle_save_profile(bot: TeleBot, call: CallbackQuery) -> None:
 
 def _display_material(bot: TeleBot, call: CallbackQuery) -> None:
     material_id = int(call.data.split('.')[-1])
-    material = get_material_by_id(material_id)
+    material = material_service.get_material_by_id(material_id)
+    
+    material_service.record_material_view(call.from_user.id, material_id)
+    bot.send_message(**AdminMessages.material_interest(call.from_user.id, call.from_user.username, material))
     
     bot.delete_message(call.message.chat.id, call.message.message_id)
     sent_messages = send_material_content(bot, call.message.chat.id, material)
@@ -137,9 +139,12 @@ def send_material_content(bot: TeleBot, chat_id: int, material: Material) -> lis
     back_markup = InlineKeyboardMarkup().add(InlineKeyboardButton('🔙 Назад', callback_data=f'back_to.{category_menu}'))
     has_documents = material.document_file_ids and len(material.document_file_ids) > 0
     first_msg_markup = None if has_documents else back_markup
-    print(material.document_file_ids)
-    print(has_documents)
-    if material.media_file_id:
+
+    if material.media_file_id and len(material.message_text) > 1024:
+        photo_msg = bot.send_photo(chat_id, material.media_file_id)
+        sent_messages.append(photo_msg.message_id)
+        msg = bot.send_message(chat_id, material.message_text, reply_markup=first_msg_markup)
+    elif material.media_file_id:
         msg = bot.send_photo(chat_id, material.media_file_id, caption=material.message_text, reply_markup=first_msg_markup)
     else:
         msg = bot.send_message(chat_id, material.message_text, reply_markup=first_msg_markup)
@@ -147,7 +152,7 @@ def send_material_content(bot: TeleBot, chat_id: int, material: Material) -> lis
     sent_messages.append(msg.message_id)
     
     if has_documents:
-        files = get_files_by_ids(material.document_file_ids)
+        files = file_service.get_files_by_ids(material.document_file_ids)
         for i, file in enumerate(files):
             is_last = i == len(files) - 1
             markup = back_markup if is_last else None

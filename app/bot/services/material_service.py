@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
-from app.db.models import Material
+from sqlalchemy import select
+from app.db.models import Material, UserMaterialView, User
 from app.db.database import with_session
 
 
@@ -50,4 +51,60 @@ def delete_material(session: Session, material_id: int) -> bool:
         session.delete(material)
         return True
     return False
+
+
+@with_session
+def record_material_view(session: Session, user_id: int, material_id: int) -> None:
+    view = UserMaterialView(user_id=user_id, material_id=material_id)
+    session.add(view)
+
+
+@with_session
+def get_user_viewed_materials(session: Session, user_id: int) -> list[int]:
+    views = session.query(UserMaterialView.material_id).filter(UserMaterialView.user_id == user_id).distinct().all()
+    return [view[0] for view in views]
+
+
+@with_session
+def get_material_statistics(session: Session, material_id: int) -> list[dict]:
+    from sqlalchemy import func
+    
+    subquery = (
+        select(
+            UserMaterialView.user_id,
+            func.max(UserMaterialView.viewed_at).label('last_viewed')
+        )
+        .filter(UserMaterialView.material_id == material_id)
+        .group_by(UserMaterialView.user_id)
+        .subquery()
+    )
+    
+    result = session.execute(
+        select(
+            User.user_id,
+            User.username,
+            User.first_name,
+            User.full_name,
+            User.company,
+            User.position,
+            User.phone_number,
+            subquery.c.last_viewed
+        )
+        .join(subquery, User.user_id == subquery.c.user_id)
+        .order_by(subquery.c.last_viewed.asc())
+    ).all()
+    
+    return [
+        {
+            'user_id': row[0],
+            'username': row[1],
+            'first_name': row[2],
+            'full_name': row[3],
+            'company': row[4],
+            'position': row[5],
+            'phone_number': row[6],
+            'viewed_at': row[7]
+        }
+        for row in result
+    ]
 

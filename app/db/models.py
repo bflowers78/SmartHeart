@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import BigInteger, String, DateTime, Text, Integer, JSON, Boolean, func
+from sqlalchemy import BigInteger, String, DateTime, Text, Integer, JSON, Boolean, func, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -41,3 +41,12 @@ class Material(Base):
     document_file_ids: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=list)
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class UserMaterialView(Base):
+    __tablename__ = "user_material_views"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.user_id"), nullable=False)
+    material_id: Mapped[int] = mapped_column(Integer, ForeignKey("materials.id"), nullable=False)
+    viewed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

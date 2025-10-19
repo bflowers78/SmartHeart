@@ -1,10 +1,12 @@
+from datetime import datetime
 from telebot import TeleBot
-from telebot.types import CallbackQuery
+from telebot.types import CallbackQuery, InputFile
 from loguru import logger
 from app.bot.admin_handlers.states import AdminState, admin_contexts, AdminContext
 from app.bot.messages import AdminMessages
-from app.bot.services.material_service import get_material_by_id, create_material, update_material, delete_material
+from app.bot.services.material_service import get_material_by_id, create_material, update_material, delete_material, get_material_statistics
 from app.bot.services.file_service import delete_file
+from app.bot.utils import create_statistics_excel
 from app.config import ADMIN_GROUP_ID
 
 
@@ -50,8 +52,8 @@ def register_admin_callback_handlers(bot: TeleBot) -> None:
             _confirm_delete(bot, call)
         elif call.data.startswith('admin.delete.'):
             _delete_material(bot, call)
-        elif call.data == 'admin.stats':
-            bot.answer_callback_query(call.id, "📊 Статистика в разработке", show_alert=True)
+        elif call.data.startswith('admin.stats.'):
+            _send_material_statistics(bot, call)
 
 
 def _show_main_menu(bot: TeleBot, call: CallbackQuery) -> None:
@@ -304,4 +306,38 @@ def _delete_material(bot: TeleBot, call: CallbackQuery) -> None:
         message_id=call.message.message_id,
         **menu_data
     )
+
+
+def _send_material_statistics(bot: TeleBot, call: CallbackQuery) -> None:
+    material_id = int(call.data.split('.')[-1])
+    material = get_material_by_id(material_id)
+    
+    if not material:
+        bot.answer_callback_query(call.id, "❌ Материал не найден", show_alert=True)
+        return
+    
+    statistics = get_material_statistics(material_id)
+    
+    if not statistics:
+        bot.answer_callback_query(call.id, "📊 Пока нет просмотров", show_alert=True)
+        return
+    
+    now = datetime.now()
+    current_month_views = sum(
+        1 for stat in statistics 
+        if stat['viewed_at'] and stat['viewed_at'].year == now.year and stat['viewed_at'].month == now.month
+    )
+    
+    filepath = create_statistics_excel(material_id, material.title, statistics)
+    
+    bot.send_document(
+        chat_id=call.message.chat.id,
+        message_thread_id=call.message.message_thread_id,
+        document=InputFile(filepath),
+        caption=f"📊 Статистика по материалу: {material.title}\n\nВсего просмотров: {len(statistics)}\nПросмотров в этом месяце: {current_month_views}"
+    )
+    
+    filepath.unlink()
+    
+    bot.answer_callback_query(call.id, "✅ Статистика отправлена")
 
