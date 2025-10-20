@@ -29,7 +29,7 @@ FIELD_PROMPTS = {
     'phone': (UserState.FILLING_PHONE, "📞 Введите номер телефона:")
 }
 
-def register_callback_handlers(bot: TeleBot) -> None:
+def register(bot: TeleBot) -> None:
     @bot.callback_query_handler(func=lambda call: True)
     def handle_callback(call: CallbackQuery) -> None:
         logger.info(f"Callback from {call.from_user.id}: {call.data}")

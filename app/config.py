@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -10,4 +11,10 @@ ADMIN_GROUP_ID: int = int(os.getenv("ADMIN_GROUP_ID"))
 MAIN_TOPIC_ID: int = int(os.getenv("MAIN_TOPIC_ID"))
 MAILING_TOPIC_ID: int = int(os.getenv("MAILING_TOPIC_ID"))
 EVENTS_TOPIC_ID: int = int(os.getenv("EVENTS_TOPIC_ID"))
+
+MOSCOW_TZ = timezone(timedelta(hours=3))
+
+
+def moscow_now() -> datetime:
+    return datetime.now(MOSCOW_TZ)
 

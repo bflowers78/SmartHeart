@@ -18,12 +18,9 @@ CATEGORY_MAP = {
 }
 
 
-def register_admin_callback_handlers(bot: TeleBot) -> None:
-    @bot.callback_query_handler(func=lambda call: call.data.startswith('admin.'))
+def register(bot: TeleBot) -> None:
+    @bot.callback_query_handler(func=lambda call: call.message.chat.id == ADMIN_GROUP_ID and call.data.startswith('admin.'))
     def handle_admin_callback(call: CallbackQuery) -> None:
-        if call.message.chat.id != ADMIN_GROUP_ID:
-            return
-        
         logger.info(f"Admin callback from {call.from_user.id}: {call.data}")
         bot.answer_callback_query(call.id)
         

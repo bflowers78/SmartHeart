@@ -4,7 +4,7 @@ from app.bot.services.user_service import create_user
 from app.bot.messages import Messages as Msg, AdminMessages
 
 
-def register_command_handlers(bot: TeleBot) -> None:
+def register(bot: TeleBot) -> None:
     @bot.message_handler(commands=["start", "menu"])
     def handle_start(message: Message) -> None:
         is_new = create_user(message.from_user)

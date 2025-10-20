@@ -1,10 +1,14 @@
+from datetime import datetime
+from typing import TYPE_CHECKING
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, User as TelegramUser
-from app.bot.admin_handlers.states import AdminContext
 from app.bot.services.material_service import get_materials_by_category
 from app.bot.services.file_service import get_files_by_ids
-from app.config import ADMIN_GROUP_ID, EVENTS_TOPIC_ID, MAIN_TOPIC_ID
-from app.db.models import User, Material
+from app.config import ADMIN_GROUP_ID, EVENTS_TOPIC_ID
+from app.db.models import User, Material, Mailing
 
+if TYPE_CHECKING:
+    from app.bot.admin_handlers.states import AdminContext, MailingContext
+    
 
 class Messages:
     @staticmethod
@@ -142,7 +146,7 @@ class AdminMessages:
         }
     
     @staticmethod
-    def get_create_material_menu(ctx: AdminContext) -> dict:
+    def get_create_material_menu(ctx: 'AdminContext') -> dict:
         title_status = ctx.title if ctx.title else "Не заполнено"
         text_status = "Заполнено" if ctx.message_text else "Не заполнено"
         photo_status = "Добавлено" if ctx.media_file_id else "Не добавлено"
@@ -180,7 +184,7 @@ class AdminMessages:
         }
     
     @staticmethod
-    def get_edit_material_menu(ctx: AdminContext) -> dict:
+    def get_edit_material_menu(ctx: 'AdminContext') -> dict:
         title_status = ctx.title if ctx.title else "Не заполнено"
         text_status = "Заполнено" if ctx.message_text else "Не заполнено"
         photo_status = "Добавлено" if ctx.media_file_id else "Не добавлено"
@@ -300,3 +304,109 @@ class AdminMessages:
             'message_thread_id': EVENTS_TOPIC_ID,
             'parse_mode': 'HTML'
         }
+    
+    @staticmethod
+    def get_mailing_confirmation(mailing_id: int) -> InlineKeyboardMarkup:
+        return InlineKeyboardMarkup(row_width=1).add(
+            InlineKeyboardButton('📅 Запланировать отправку', callback_data=f'mail.schedule.{mailing_id}'),
+            InlineKeyboardButton('🚀 Отправить сейчас', callback_data=f'mail.send_now.{mailing_id}')
+        )
+    
+    @staticmethod
+    def get_calendar_menu(mailing_id: int, current_date: datetime | None = None) -> InlineKeyboardMarkup:
+        if not current_date:
+            current_date = datetime.now()
+        
+        markup = InlineKeyboardMarkup(row_width=7)
+        
+        year = current_date.year
+        month = current_date.month
+        
+        markup.add(InlineKeyboardButton(f'📅 {current_date.strftime("%B %Y")}', callback_data='mail.noop'))
+        
+        days_row = [InlineKeyboardButton(day, callback_data='mail.noop') for day in ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']]
+        markup.row(*days_row)
+        
+        from calendar import monthcalendar
+        cal = monthcalendar(year, month)
+        
+        for week in cal:
+            week_buttons = []
+            for day in week:
+                if day == 0:
+                    week_buttons.append(InlineKeyboardButton(' ', callback_data='mail.noop'))
+                else:
+                    date_obj = datetime(year, month, day)
+                    if date_obj.date() < datetime.now().date():
+                        week_buttons.append(InlineKeyboardButton(f'·{day}·', callback_data='mail.noop'))
+                    else:
+                        week_buttons.append(InlineKeyboardButton(f'{day}', callback_data=f'mail.date.{mailing_id}.{year}.{month}.{day}'))
+            markup.row(*week_buttons)
+        
+        nav_buttons = []
+        if month > 1:
+            nav_buttons.append(InlineKeyboardButton('◀️', callback_data=f'mail.cal.{mailing_id}.{year}.{month-1}'))
+        else:
+            nav_buttons.append(InlineKeyboardButton('◀️', callback_data=f'mail.cal.{mailing_id}.{year-1}.12'))
+        
+        if month < 12:
+            nav_buttons.append(InlineKeyboardButton('▶️', callback_data=f'mail.cal.{mailing_id}.{year}.{month+1}'))
+        else:
+            nav_buttons.append(InlineKeyboardButton('▶️', callback_data=f'mail.cal.{mailing_id}.{year+1}.1'))
+        
+        markup.row(*nav_buttons)
+        markup.add(InlineKeyboardButton('❌ Отмена', callback_data=f'mail.cancel.{mailing_id}'))
+        
+        return markup
+    
+    @staticmethod
+    def get_time_menu(mailing_id: int, ctx: 'MailingContext') -> InlineKeyboardMarkup:
+        current_time = ctx.scheduled_time or datetime.now().replace(second=0, microsecond=0)
+        
+        time_str = current_time.strftime('%H:%M')
+        date_str = ctx.scheduled_date.strftime('%d.%m') if ctx.scheduled_date else '??.??'
+        
+        markup = InlineKeyboardMarkup(row_width=4)
+        markup.add(InlineKeyboardButton(f'🕐 {date_str} {time_str}', callback_data='mail.schedule.{mailing_id}'))
+        markup.row(
+            InlineKeyboardButton('-1ч', callback_data=f'mail.time.{mailing_id}.-60'),
+            InlineKeyboardButton('-10м', callback_data=f'mail.time.{mailing_id}.-10'),
+            InlineKeyboardButton('+10м', callback_data=f'mail.time.{mailing_id}.10'),
+            InlineKeyboardButton('+1ч', callback_data=f'mail.time.{mailing_id}.60')
+        )
+        
+        markup.add(InlineKeyboardButton('💾 Сохранить', callback_data=f'mail.save_schedule.{mailing_id}'))
+        markup.add(InlineKeyboardButton('❌ Отмена', callback_data=f'mail.cancel.{mailing_id}'))
+        
+        return markup
+    
+    @staticmethod
+    def get_scheduled_mailing_info(mailing: Mailing) -> InlineKeyboardMarkup:
+        scheduled_str = mailing.scheduled_at.strftime('%d.%m %H:%M') if mailing.scheduled_at else '??.?? ??:??'
+        
+        return InlineKeyboardMarkup(row_width=1).add(
+            InlineKeyboardButton(f'✅ Запланировано: {scheduled_str}', callback_data='mail.noop'),
+            InlineKeyboardButton('📅 Дата', callback_data=f'mail.schedule.{mailing.id}'),
+            InlineKeyboardButton('🕐 Время', callback_data=f'mail.edit_time.{mailing.id}')
+        )
+    
+    @staticmethod
+    def get_mailing_progress(mailing_id: int, total: int, sent: int, blocked: int, errors: int) -> InlineKeyboardMarkup:
+        progress = int((sent + blocked + errors) / total * 100) if total > 0 else 0
+        progress_bar = '█' * (progress // 10) + '░' * (10 - progress // 10)
+        
+        return InlineKeyboardMarkup(row_width=1).add(
+            InlineKeyboardButton(f'📬 Рассылка #{mailing_id}', callback_data='mail.noop'),
+            InlineKeyboardButton(f'{progress_bar} {progress}%', callback_data='mail.noop'),
+            InlineKeyboardButton(f'✅ {sent}/{total} | 🚫 {blocked} | ❌ {errors}', callback_data='mail.noop'),
+            InlineKeyboardButton('⏸ Приостановить', callback_data=f'mail.pause.{mailing_id}')
+        )
+    
+    @staticmethod
+    def get_mailing_completed(mailing: Mailing, total: int) -> InlineKeyboardMarkup:
+        return InlineKeyboardMarkup(row_width=1).add(
+            InlineKeyboardButton(f'✅ Рассылка #{mailing.id} завершена', callback_data='mail.noop'),
+            InlineKeyboardButton(f'📊 Отправлено: {mailing.sent_count}/{total}', callback_data='mail.noop'),
+            InlineKeyboardButton(f'🚫 Заблокировано: {mailing.blocked_count}', callback_data='mail.noop'),
+            InlineKeyboardButton(f'❌ Ошибок: {mailing.error_count}', callback_data='mail.noop')
+        )

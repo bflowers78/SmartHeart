@@ -15,7 +15,7 @@ FIELD_VALIDATORS = {
 }
 
 
-def register_message_handlers(bot: TeleBot) -> None:
+def register(bot: TeleBot) -> None:
     @bot.message_handler(content_types=["text"])
     def handle_text(message: Message) -> None:
         logger.info(f"Received message from {message.from_user.id}: {message.text}")

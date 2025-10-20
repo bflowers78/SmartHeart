@@ -1,17 +1,67 @@
 from telebot import TeleBot
 from telebot.types import Message
 from loguru import logger
-from app.bot.admin_handlers.states import AdminState, admin_contexts
+from app.bot.admin_handlers.states import AdminState, admin_contexts, mailing_contexts, MailingContext
 from app.bot.messages import AdminMessages
 from app.bot.services.file_service import create_file
-from app.config import ADMIN_GROUP_ID, MAIN_TOPIC_ID
+from app.bot.services.mailing_service import create_mailing
+from app.config import ADMIN_GROUP_ID, MAIN_TOPIC_ID, MAILING_TOPIC_ID
 
 
-def register_admin_message_handlers(bot: TeleBot) -> None:
-    @bot.message_handler(func=lambda m: m.chat.id == ADMIN_GROUP_ID, content_types=['text'])
+def register(bot: TeleBot) -> None:
+    @bot.message_handler(func=lambda m: m.chat.id == ADMIN_GROUP_ID and m.message_thread_id == MAILING_TOPIC_ID, content_types=['text', 'photo', 'video'])
+    def handle_mailing_message(message: Message) -> None:
+        user_id = message.from_user.id
+        
+        message_type = message.content_type
+        message_text = message.text or message.caption
+        media_file_id = None
+        
+        if message_type == 'photo':
+            media_file_id = message.photo[-1].file_id
+        elif message_type == 'video':
+            media_file_id = message.video.file_id
+        
+        mailing = create_mailing(
+            message_type=message_type,
+            message_text=message_text,
+            media_file_id=media_file_id
+        )
+        
+        ctx = MailingContext(
+            mailing_id=mailing.id,
+            message_id=message.message_id,
+            message_type=message_type,
+            message_text=message_text,
+            media_file_id=media_file_id
+        )
+        mailing_contexts[user_id] = ctx
+        
+        send_methods = {
+            'text': bot.send_message,
+            'photo': bot.send_photo,
+            'video': bot.send_video
+        }
+        
+        send_params = {
+            'text': {'text': message_text or "Текст не указан"},
+            'photo': {'photo': media_file_id, 'caption': message_text},
+            'video': {'video': media_file_id, 'caption': message_text}
+        }
+        
+        method = send_methods.get(message_type, send_methods['text'])
+        params = send_params.get(message_type, send_params['text'])
+        
+        sent_msg = method(
+            chat_id=message.chat.id,
+            message_thread_id=message.message_thread_id,
+            reply_markup=AdminMessages.get_mailing_confirmation(mailing.id),
+            **params
+        )
+        ctx.menu_message_id = sent_msg.message_id
+    
+    @bot.message_handler(func=lambda m: m.chat.id == ADMIN_GROUP_ID and m.message_thread_id == MAIN_TOPIC_ID, content_types=['text'])
     def handle_text_input(message: Message) -> None:
-        if message.message_thread_id and message.message_thread_id != MAIN_TOPIC_ID:
-            return
         
         user_id = message.from_user.id
         ctx = admin_contexts.get(user_id)
@@ -26,10 +76,8 @@ def register_admin_message_handlers(bot: TeleBot) -> None:
             ctx.message_text = message.text.strip()
             _update_menu(bot, message, ctx)
     
-    @bot.message_handler(func=lambda m: m.chat.id == ADMIN_GROUP_ID, content_types=['photo'])
+    @bot.message_handler(func=lambda m: m.chat.id == ADMIN_GROUP_ID and m.message_thread_id == MAIN_TOPIC_ID, content_types=['photo'])
     def handle_photo_input(message: Message) -> None:
-        if message.message_thread_id and message.message_thread_id != MAIN_TOPIC_ID:
-            return
         
         user_id = message.from_user.id
         ctx = admin_contexts.get(user_id)
@@ -40,10 +88,8 @@ def register_admin_message_handlers(bot: TeleBot) -> None:
         ctx.media_file_id = message.photo[-1].file_id
         _update_menu(bot, message, ctx)
     
-    @bot.message_handler(func=lambda m: m.chat.id == ADMIN_GROUP_ID, content_types=['document'])
+    @bot.message_handler(func=lambda m: m.chat.id == ADMIN_GROUP_ID and m.message_thread_id == MAIN_TOPIC_ID, content_types=['document'])
     def handle_document_input(message: Message) -> None:
-        if message.message_thread_id and message.message_thread_id != MAIN_TOPIC_ID:
-            return
         
         user_id = message.from_user.id
         ctx = admin_contexts.get(user_id)

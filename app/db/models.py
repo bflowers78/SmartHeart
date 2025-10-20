@@ -18,6 +18,7 @@ class User(Base):
     position: Mapped[str] = mapped_column(String(255), nullable=True)
     phone_number: Mapped[str] = mapped_column(String(20), nullable=True)
     is_profile_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_blocked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -50,3 +51,19 @@ class UserMaterialView(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.user_id"), nullable=False)
     material_id: Mapped[int] = mapped_column(Integer, ForeignKey("materials.id"), nullable=False)
     viewed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class Mailing(Base):
+    __tablename__ = "mailings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    message_text: Mapped[str] = mapped_column(Text, nullable=True)
+    message_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    media_file_id: Mapped[str] = mapped_column(String(255), nullable=True)
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    sent_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    blocked_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    completed_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
