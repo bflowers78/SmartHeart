@@ -3,8 +3,9 @@ from telebot.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardBut
 from loguru import logger
 from app.bot.messages import Messages, AdminMessages
 from app.bot.services import material_service, user_service, file_service
+from app.bot.services.amocrm_service import create_lead, add_note_to_lead
 from app.bot.user_handlers.states import UserState, user_contexts, UserContext
-from app.db.models import Material
+from app.db.models import Material, User
 
 user_messages: dict[int, list[int]] = {}
 
@@ -117,11 +118,59 @@ def _handle_save_profile(bot: TeleBot, call: CallbackQuery) -> None:
     bot.send_message(**AdminMessages.profile_completed(user))
     
     ctx = user_contexts.get(user_id)
+    _create_amocrm_lead(user, ctx)
+    
     if ctx and ctx.pending_material_id:
         call.data = f'get_material.{ctx.pending_material_id}'
         _display_material(bot, call)
         ctx.pending_material_id = None
         ctx.state = None
+
+
+def _get_user_contact_info(user: User) -> list[str]:
+    """Формирует список контактной информации пользователя"""
+    contact_info = [
+        f"ФИО: {user.full_name}",
+        f"Компания: {user.company}",
+        f"Должность: {user.position}",
+        f"Телефон: {user.phone_number}"
+    ]
+    
+    if user.username:
+        contact_info.append(f"Username: @{user.username}")
+    
+    return contact_info
+
+
+def _create_lead_with_note(user: User, lead_name: str, note_parts: list[str]) -> None:
+    """Создает сделку в AMO CRM и добавляет к ней примечание"""
+    lead_id = create_lead(lead_name)
+    
+    if not lead_id:
+        logger.error(f"Не удалось создать сделку для пользователя {user.user_id}")
+        return
+    
+    add_note_to_lead(lead_id, "\n".join(note_parts))
+
+
+def _create_amocrm_lead(user: User, ctx: UserContext | None) -> None:
+    """Создает сделку в AMO CRM с примечанием"""
+    lead_name = f"Консультация: {user.first_name}"
+    note_parts = _get_user_contact_info(user)
+    
+    if ctx and ctx.pending_material_id:
+        material = material_service.get_material_by_id(ctx.pending_material_id)
+        if material:
+            note_parts.append(f"\nИнтересующий материал: {material.title}")
+    
+    _create_lead_with_note(user, lead_name, note_parts)
+
+
+def _create_roasting_lead(user: User, request_type: str) -> None:
+    """Создает сделку в AMO CRM для заявки на роастинг"""
+    lead_name = f"Прожарка: Заявка стать {request_type}"
+    note_parts = [f"Тип заявки: Стать {request_type}"] + _get_user_contact_info(user)
+    _create_lead_with_note(user, lead_name, note_parts)
 
 
 def _display_material(bot: TeleBot, call: CallbackQuery) -> None:
@@ -176,8 +225,10 @@ def delete_user_messages(bot: TeleBot, chat_id: int, user_id: int) -> None:
 def _handle_roasting_request(bot: TeleBot, call: CallbackQuery) -> None:
     user = user_service.get_user_by_user_id(call.from_user.id)
     request_type = "participant" if call.data == 'become_participant' else "viewer"
+    request_type_ru = "участником" if call.data == 'become_participant' else "зрителем"
     
     bot.send_message(**AdminMessages.roasting_request(user, request_type))
+    _create_roasting_lead(user, request_type_ru)
     
     bot.answer_callback_query(call.id, "✅ Ваша заявка принята!", show_alert=True)
     bot.send_message(
