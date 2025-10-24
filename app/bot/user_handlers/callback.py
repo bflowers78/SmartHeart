@@ -34,21 +34,23 @@ def register(bot: TeleBot) -> None:
     @bot.callback_query_handler(func=lambda call: True)
     def handle_callback(call: CallbackQuery) -> None:
         logger.info(f"Callback from {call.from_user.id}: {call.data}")
-        bot.answer_callback_query(call.id)
         
         if call.data in MENU_MESSAGES:
             _menu_navigation(bot, call)
         elif call.data.startswith('back_to.'):
             _back_prevmenu(bot, call)
         elif call.data.startswith('get_material.'):
-            if _is_complete_profile(bot, call):
+            if _is_complete_profile(bot, call, 'material'):
                 _display_material(bot, call)
         elif call.data.startswith('fill.'):
             _handle_profile_fill(bot, call)
         elif call.data == 'save_data':
             _handle_save_profile(bot, call)
+        elif call.data == 'accept_consent':
+            _handle_consent_acceptance(bot, call)
         elif call.data in ('become_participant', 'become_viewer'):
-            _handle_roasting_request(bot, call)
+            if _is_complete_profile(bot, call, 'roasting'):
+                _handle_roasting_request(bot, call)
 
 def _menu_navigation(bot: TeleBot, call: CallbackQuery) -> None:
     bot.edit_message_text(
@@ -64,18 +66,29 @@ def _back_prevmenu(bot: TeleBot, call: CallbackQuery) -> None:
     bot.send_message(call.message.chat.id, **MENU_MESSAGES[category_menu]())
 
 
-def _is_complete_profile(bot: TeleBot, call: CallbackQuery) -> None:
-    material_id = int(call.data.split('.')[-1])
+def _is_complete_profile(bot: TeleBot, call: CallbackQuery, action_type: str) -> bool:
+    """Проверяет готовность профиля для указанного действия"""
     user = user_service.get_user_by_user_id(call.from_user.id)
     
-    if not user or not user.is_profile_completed:
+    if not user or not user.is_consent_given:
+        _show_consent_message(bot, call, action_type)
+        return False
+    
+    if not user.is_profile_completed:
         user_id = call.from_user.id
         
         if user_id not in user_contexts:
             user_contexts[user_id] = UserContext()
         
         ctx = user_contexts[user_id]
-        ctx.pending_material_id = material_id
+        
+        # Сохраняем ожидающее действие в зависимости от типа
+        if action_type == 'material':
+            material_id = int(call.data.split('.')[-1])
+            ctx.pending_material_id = material_id
+        elif action_type == 'roasting':
+            ctx.pending_roasting_request = call.data
+        
         ctx.state = UserState.MATERIAL_REQUESTED
         ctx.profile_menu_message_id = call.message.message_id
         
@@ -88,6 +101,52 @@ def _is_complete_profile(bot: TeleBot, call: CallbackQuery) -> None:
                 
         return False
     return True
+
+def _show_consent_message(bot: TeleBot, call: CallbackQuery, action_type: str) -> None:
+    """Показывает сообщение с согласием на обработку персональных данных"""
+    user_id = call.from_user.id
+    
+    if user_id not in user_contexts:
+        user_contexts[user_id] = UserContext()
+    
+    ctx = user_contexts[user_id]
+    
+    if action_type == 'material':
+        material_id = int(call.data.split('.')[-1])
+        ctx.pending_material_id = material_id
+    elif action_type == 'roasting':
+        ctx.pending_roasting_request = call.data
+    
+    ctx.state = UserState.CONSENT_REQUESTED
+    ctx.consent_message_id = call.message.message_id
+    
+    consent_data = Messages.get_consent_message()
+    
+    msg = bot.edit_message_text(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        **consent_data
+    )
+    ctx.consent_message_id = msg.message_id
+
+def _handle_consent_acceptance(bot: TeleBot, call: CallbackQuery) -> None:
+    """Обрабатывает принятие согласия на обработку персональных данных"""
+    user_id = call.from_user.id
+    user = user_service.get_user_by_user_id(user_id)
+    
+    if not user:
+        user = user_service.create_user(call.from_user)
+    
+    user_service.update_user_consent(user_id, True)
+    
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    
+    ctx = user_contexts.get(user_id)
+    if ctx and (ctx.pending_material_id or ctx.pending_roasting_request):
+        ctx.state = UserState.MATERIAL_REQUESTED
+        
+        msg = bot.send_message(call.message.chat.id, **Messages.get_profile_fill_menu(user))
+        ctx.profile_menu_message_id = msg.message_id
 
 def _handle_profile_fill(bot: TeleBot, call: CallbackQuery) -> None:
     field = call.data.split('.')[-1]
@@ -117,14 +176,34 @@ def _handle_save_profile(bot: TeleBot, call: CallbackQuery) -> None:
     bot.answer_callback_query(call.id, "✅ Данные успешно сохранены")
     bot.send_message(**AdminMessages.profile_completed(user))
     
-    ctx = user_contexts.get(user_id)
-    _create_amocrm_lead(user, ctx)
+    _create_user_lead_with_contacts(user)
     
+    ctx = user_contexts.get(user_id)
     if ctx and ctx.pending_material_id:
         call.data = f'get_material.{ctx.pending_material_id}'
         _display_material(bot, call)
         ctx.pending_material_id = None
         ctx.state = None
+    elif ctx and ctx.pending_roasting_request:
+        call.data = ctx.pending_roasting_request
+        _handle_roasting_request(bot, call)
+        ctx.pending_roasting_request = None
+        ctx.state = None
+
+
+def _create_user_lead_with_contacts(user: User) -> None:
+    """Создает сделку в AMO CRM с контактными данными пользователя"""
+    lead_name = user.full_name
+    lead_id = create_lead(lead_name)
+    
+    if lead_id:
+        user_service.update_user_lead_id(user.user_id, lead_id)
+        logger.info(f"Создана сделка {lead_id} для пользователя {user.user_id}")
+        
+        # Отправляем примечание с контактными данными
+        contact_info = _get_user_contact_info(user)
+        add_note_to_lead(lead_id, "\n".join(contact_info))
+        logger.info(f"Добавлено примечание к сделке {lead_id} с контактными данными")
 
 
 def _get_user_contact_info(user: User) -> list[str]:
@@ -153,32 +232,18 @@ def _create_lead_with_note(user: User, lead_name: str, note_parts: list[str]) ->
     add_note_to_lead(lead_id, "\n".join(note_parts))
 
 
-def _create_amocrm_lead(user: User, ctx: UserContext | None) -> None:
-    """Создает сделку в AMO CRM с примечанием"""
-    lead_name = f"Консультация: {user.first_name}"
-    note_parts = _get_user_contact_info(user)
-    
-    if ctx and ctx.pending_material_id:
-        material = material_service.get_material_by_id(ctx.pending_material_id)
-        if material:
-            note_parts.append(f"\nИнтересующий материал: {material.title}")
-    
-    _create_lead_with_note(user, lead_name, note_parts)
-
-
-def _create_roasting_lead(user: User, request_type: str) -> None:
-    """Создает сделку в AMO CRM для заявки на роастинг"""
-    lead_name = f"Прожарка: Заявка стать {request_type}"
-    note_parts = [f"Тип заявки: Стать {request_type}"] + _get_user_contact_info(user)
-    _create_lead_with_note(user, lead_name, note_parts)
-
-
 def _display_material(bot: TeleBot, call: CallbackQuery) -> None:
     material_id = int(call.data.split('.')[-1])
     material = material_service.get_material_by_id(material_id)
+    user = user_service.get_user_by_user_id(call.from_user.id)
     
     material_service.record_material_view(call.from_user.id, material_id)
     bot.send_message(**AdminMessages.material_interest(call.from_user.id, call.from_user.username, material))
+    
+    if user and user.lead_id:
+        note_text = f"Просмотрен материал: {material.title}"
+        add_note_to_lead(user.lead_id, note_text)
+        logger.info(f"Добавлено примечание к сделке {user.lead_id}: {note_text}")
     
     bot.delete_message(call.message.chat.id, call.message.message_id)
     sent_messages = send_material_content(bot, call.message.chat.id, material)
@@ -228,7 +293,12 @@ def _handle_roasting_request(bot: TeleBot, call: CallbackQuery) -> None:
     request_type_ru = "участником" if call.data == 'become_participant' else "зрителем"
     
     bot.send_message(**AdminMessages.roasting_request(user, request_type))
-    _create_roasting_lead(user, request_type_ru)
+    
+    # Добавляем примечание к сделке
+    if user and user.lead_id:
+        note_text = f"Подана заявка стать {request_type_ru}"
+        add_note_to_lead(user.lead_id, note_text)
+        logger.info(f"Добавлено примечание к сделке {user.lead_id}: {note_text}")
     
     bot.answer_callback_query(call.id, "✅ Ваша заявка принята!", show_alert=True)
     bot.send_message(

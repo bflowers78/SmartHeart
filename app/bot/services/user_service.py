@@ -43,7 +43,21 @@ def update_user_profile(session: Session, user_id: int, field: str, value: str) 
         
         if user.full_name and user.company and user.position and user.phone_number:
             user.is_profile_completed = True
-        
+
+
+@with_session
+def update_user_consent(session: Session, user_id: int, consent_given: bool) -> None:
+    user = session.query(User).filter(User.user_id == user_id).first()
+    if user:
+        user.is_consent_given = consent_given
+
+
+@with_session
+def update_user_lead_id(session: Session, user_id: int, lead_id: int) -> None:
+    user = session.query(User).filter(User.user_id == user_id).first()
+    if user:
+        user.lead_id = lead_id
+
 
 @with_session
 def get_all_users_with_materials(session: Session) -> list[dict]:

@@ -18,7 +18,9 @@ class User(Base):
     position: Mapped[str] = mapped_column(String(255), nullable=True)
     phone_number: Mapped[str] = mapped_column(String(20), nullable=True)
     is_profile_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_consent_given: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_blocked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    lead_id: Mapped[int] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
