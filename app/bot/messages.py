@@ -135,10 +135,10 @@ class Messages:
         'text': '🏠 *О нас*',
         'parse_mode': 'Markdown',
         'reply_markup': InlineKeyboardMarkup(row_width=1).add(
-            InlineKeyboardButton('Умное Сердце в телеграмм', url='https://lcvr.net/s/PSRGV'),
+            InlineKeyboardButton('Умное Сердце в телеграмм', url='https://t.me/+gwVzMMDzODExNGEy'),
             InlineKeyboardButton('Портфолио', url='https://lcvr.net/s/gzxsY'),
             InlineKeyboardButton('Команда', url='https://lcvr.net/s/GG8PB'),
-            InlineKeyboardButton('Оставить замоку', url='https://lcvr.net/s/JdcdH'),
+            InlineKeyboardButton('Оставить заявку', url='https://lcvr.net/s/JdcdH'),
             InlineKeyboardButton('Услуги', url='https://lcvr.net/s/sxdGt'),
             InlineKeyboardButton('🏠 Главное меню', callback_data='main_menu')
         )
